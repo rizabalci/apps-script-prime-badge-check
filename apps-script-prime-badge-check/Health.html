@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SFP DE Account Health</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one scanning column: verdict, three Amazon metrics, trend, readings. Same dark look as DE Prime Check. */
+:root{
+  --paper:#101211; --panel:#191c1b; --ink:#eceeea; --ink-2:#a9b1af; --ink-3:#7e8785;
+  --rule:#2e3331; --rule-2:#242827;
+  --accent:#6fc4b6; --accent-soft:#1d2f2d;
+  --g:#4FA06F; --a:#E0A33F; --r:#E0685C;
+  --g-bg:#1b2a21; --a-bg:#2d2618; --r-bg:#2e1c1a;
+  --f-display:"IBM Plex Sans Condensed","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --f-data:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:20px 56px;display:flex;flex-direction:column;gap:26px}
+h1,h2,h3{margin:0;font-family:var(--f-display);text-wrap:balance}
+a{color:var(--accent)}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;border-bottom:2px solid var(--ink-2);padding-bottom:12px}
+.top h1{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:1.05}
+.top .sub{color:var(--ink-2);font-size:13px;margin-top:3px}
+.stamp{text-align:right;min-width:0}
+.stamp .when{font-family:var(--f-data);font-size:19px;font-weight:500;letter-spacing:-.02em;white-space:nowrap}
+.stamp .tag{display:inline-block;margin-top:4px;font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);border-radius:2px;padding:3px 7px}
+section{display:flex;flex-direction:column;gap:12px}
+.shead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.shead h2{font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3)}
+.shead .note{font-size:12px;color:var(--ink-3)}
+
+.banner{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:3px;border:1px solid var(--rule);background:var(--panel)}
+.banner.warn{border-color:var(--a);background:var(--a-bg)}
+.banner.ok{border-color:var(--g);background:var(--g-bg)}
+.banner.crit{border-color:var(--r);background:var(--r-bg)}
+.banner .tag{flex:none;font-family:var(--f-display);font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:4px 8px;border-radius:2px;color:var(--paper)}
+.banner.warn .tag{background:var(--a)} .banner.ok .tag{background:var(--g)} .banner.crit .tag{background:var(--r)}
+.banner .msg{font-size:16px;font-weight:600}
+.banner .why{font-size:13px;color:var(--ink-2);margin-top:3px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.tile.tight{border-color:var(--a);box-shadow:inset 0 3px 0 var(--a)} .tile.breach{border-color:var(--r);box-shadow:inset 0 3px 0 var(--r)}
+.tile .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tile .nm{font-family:var(--f-display);font-size:15px;font-weight:700}
+.pill{font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px}
+.pill.ok{color:var(--g);background:var(--g-bg)} .pill.tight{color:var(--a);background:var(--a-bg)} .pill.breach{color:var(--r);background:var(--r-bg)}
+.tile .val{font-family:var(--f-data);font-size:38px;font-weight:500;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.tile .tgt{font-size:12px;color:var(--ink-3);font-family:var(--f-data)}
+.tile .meta{font-size:12.5px;color:var(--ink-2);font-family:var(--f-data);font-variant-numeric:tabular-nums}
+.tile .room{font-size:13px;color:var(--ink-2);border-top:1px solid var(--rule-2);padding-top:9px}
+.tile .room b{font-family:var(--f-data);color:var(--ink);font-weight:500;font-size:15px}
+.tile{position:relative;overflow:hidden;padding-left:20px}
+.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--g)}
+.tile.tight::before{background:var(--a)} .tile.breach::before{background:var(--r)}
+.tile.tight,.tile.breach{box-shadow:none}
+.gwrap{position:relative;max-width:240px;width:100%;margin:2px auto 0}
+.gwrap svg.gauge{width:100%;height:auto;display:block}
+.gwrap .gval{position:absolute;left:0;right:0;bottom:2px;text-align:center;font-family:var(--f-data);font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.delta{display:flex;justify-content:center;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-3);font-family:var(--f-data)}
+.delta b{font-weight:500}
+.delta .up{color:var(--g)} .delta .dn{color:var(--r)} .delta .eq{color:var(--ink-2)}
+.spark{border-top:1px solid var(--rule-2);padding-top:8px}
+.spark svg{width:100%;height:44px;display:block}
+.spark .lbl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);font-family:var(--f-data);margin-top:2px}
+.spark .none{font-size:12px;color:var(--ink-3);text-align:center;padding:12px 0}
+
+.trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.trend{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:12px 14px;min-width:0}
+.trend h3{font-size:13px;font-weight:700;margin-bottom:6px}
+.trend svg{width:100%;height:110px;display:block}
+.trend .empty{font-size:12.5px;color:var(--ink-3);padding:30px 0;text-align:center}
+
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:6px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--rule-2);color:var(--ink-2);vertical-align:top}
+td.d{font-family:var(--f-data);color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+td .c{color:var(--ink-3)}
+td .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+tr:last-child td{border-bottom:0}
+.tablebox{background:var(--panel);border:1px solid var(--rule);border-radius:3px}
+
+.loading{color:var(--ink-3);text-align:center;padding:40px 0}
+footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);padding-top:12px}
+.bx{margin-top:10px;border-top:1px solid var(--rule-2);padding-top:6px;font-size:12px}.bx-h{font-family:"IBM Plex Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin:6px 0 3px}.bx-r{display:flex;align-items:center;gap:6px;margin:2px 0}.bx-t{color:var(--ink-2);line-height:1.45}.banner.stale{border-color:var(--r)}.bx-r .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>SFP DE Account Health</h1>
+      <div class="sub">BrandX · amazon.de · seller-fulfilled · Seller Central › Account Health, read weekdays</div>
+    </div>
+    <div class="stamp">
+      <div class="when" id="when">-</div>
+      <div class="tag" id="stamptag">Latest reading</div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">Loading readings…</div>
+
+  <section id="s-verdict" hidden>
+    <div class="banner" id="banner"></div>
+  </section>
+
+  <section id="s-tiles" hidden>
+    <div class="shead"><h2>Delivery performance</h2><div class="note">Amazon's targets · headroom = how many more misses before a breach</div></div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="s-trend" hidden>
+    <div class="shead"><h2>Trend</h2><div class="note" id="trend-note"></div></div>
+    <div class="trends" id="trends"></div>
+  </section>
+
+  <section id="s-hist" hidden>
+    <div class="shead"><h2>Readings</h2><div class="note" id="hist-note"></div></div>
+    <div class="tablebox scroll"><table id="hist"></table></div>
+  </section>
+
+  <footer>
+    <span>Source: the <a href="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_3/edit" target="_blank" rel="noopener">SFP DE Account Health</a> sheet, one row per reading.</span>
+    <a href="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec">DE Prime Check →</a>
+    <a href="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec?view=eu">EU marketplaces →</a>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  function $(id){ return document.getElementById(id); }
+  var METRICS = [
+    {k:"otd",  name:"On-time delivery",            unit:"units",     one:"unit",     target:0.90, dir:"min"},
+    {k:"ldr10",name:"Late dispatch · 10 days",     unit:"orders",    one:"order",    target:0.04, dir:"max", win:"10 days"},
+    {k:"ldr",  name:"Late dispatch · 30 days",     unit:"orders",    one:"order",    target:0.04, dir:"max"},
+    {k:"bhdr", name:"Business Hour Delivery Rate", unit:"shipments", one:"shipment", target:0.90, dir:"min"}
+  ];
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  function num(s){ var n=parseFloat(String(s||"").replace(/[^0-9.\-]/g,"")); return isNaN(n)?null:n; }
+  function fmt(n){ return Math.round(n).toLocaleString("en-GB"); }
+  function pct(v,d){ return (v*100).toFixed(d==null?2:d)+"%"; }
+  function rate(row,k){ var n=num(row[k+"_num"]), d=num(row[k+"_den"]); return (n==null||!d)?null:{n:n,d:d,v:n/d}; }
+  function assess(m,r){
+    var pass = m.dir==="min" ? r.v>m.target : r.v<m.target;
+    var k = m.dir==="min" ? Math.floor(r.n - m.target*r.d + 1e-9) : Math.floor(m.target*r.d - r.n - 1e-9);
+    var state = !pass ? "breach" : ((m.dir==="min" ? k<=3 : k<=20) ? "tight" : "ok");
+    return {pass:pass,k:k,state:state};
+  }
+  var COLOR = {ok:"var(--g)",tight:"var(--a)",breach:"var(--r)"};
+
+  function gauge(m,v){
+    var lo = m.dir==="min" ? Math.min(0.85, v-0.02) : 0;
+    var hi = m.dir==="min" ? 1 : Math.max(0.05, v*1.2);
+    var W=300, x=function(t){ return 4+(W-8)*(t-lo)/(hi-lo); };
+    var good = m.dir==="min" ? [x(m.target),x(hi)] : [x(lo),x(m.target)];
+    var bad  = m.dir==="min" ? [x(lo),x(m.target)] : [x(m.target),x(hi)];
+    return '<svg viewBox="0 0 '+W+' 34" preserveAspectRatio="none" aria-hidden="true">'+
+      '<rect x="'+bad[0]+'" y="9" width="'+(bad[1]-bad[0])+'" height="8" fill="var(--r-bg)"/>'+
+      '<rect x="'+good[0]+'" y="9" width="'+(good[1]-good[0])+'" height="8" fill="var(--g-bg)"/>'+
+      '<line x1="'+x(m.target)+'" x2="'+x(m.target)+'" y1="3" y2="23" stroke="var(--ink-2)" stroke-width="1.5"/>'+
+      '<text x="'+x(m.target)+'" y="33" font-size="9" text-anchor="middle" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">'+pct(m.target,0)+'</text>'+
+      '<circle cx="'+x(v)+'" cy="13" r="5.5" fill="var(--ink)"/></svg>';
+  }
+
+  // half-circle gauge with red/amber/green bands and target tick
+  function radial(m, v, state){
+    var lo, hi, bands;
+    if(m.dir==="min"){ lo=0.80; hi=1.00; bands=[[lo,m.target,"var(--r)"],[m.target,Math.min(hi,m.target+0.03),"var(--a)"],[Math.min(hi,m.target+0.03),hi,"var(--g)"]]; }
+    else { lo=0; hi=m.target*2; bands=[[lo,m.target*0.75,"var(--g)"],[m.target*0.75,m.target,"var(--a)"],[m.target,hi,"var(--r)"]]; }
+    var cx=120, cy=112, R=96, w=16;
+    var ang=function(t){ var f=Math.max(0,Math.min(1,(t-lo)/(hi-lo))); return Math.PI*(1-f); };
+    var pt=function(a,r){ return [cx+r*Math.cos(a), cy-r*Math.sin(a)]; };
+    var arc=function(t0,t1,col,op){ var a0=ang(t0), a1=ang(t1), p0=pt(a0,R), p1=pt(a1,R);
+      return '<path d="M'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+' A'+R+' '+R+' 0 0 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+'" stroke="'+col+'" stroke-width="'+w+'" fill="none" opacity="'+op+'"/>'; };
+    var s='<svg class="gauge" viewBox="0 0 240 124" aria-hidden="true">';
+    bands.forEach(function(b){ s+=arc(b[0],b[1],b[2],0.28); });
+    s+=arc(lo, Math.max(lo+1e-6, Math.min(hi,v)), COLOR[state], 1);
+    var ta=ang(m.target), t0=pt(ta,R-w/2-4), t1=pt(ta,R+w/2+4), tl=pt(ta,R+w/2+14);
+    s+='<line x1="'+t0[0]+'" y1="'+t0[1]+'" x2="'+t1[0]+'" y2="'+t1[1]+'" stroke="var(--ink)" stroke-width="2"/>';
+    s+='<text x="'+tl[0]+'" y="'+(tl[1]+3)+'" font-size="10" text-anchor="middle" fill="var(--ink-2)" font-family="IBM Plex Mono,monospace">'+pct(m.target,0)+'</text>';
+    s+='<text x="'+(cx-R)+'" y="'+(cy+12)+'" font-size="9" text-anchor="middle" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">'+pct(lo,0)+'</text>';
+    s+='<text x="'+(cx+R)+'" y="'+(cy+12)+'" font-size="9" text-anchor="middle" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">'+pct(hi,0)+'</text>';
+    return s+'</svg>';
+  }
+
+  // change vs previous reading, in percentage points; good/bad depends on direction
+  function delta(m, rows){
+    if(rows.length<2) return '<div class="delta">first reading</div>';
+    var a=rate(rows[0],m.k), b=rate(rows[1],m.k);
+    if(!a||!b) return '<div class="delta">no previous value</div>';
+    var d=(a.v-b.v)*100;
+    if(Math.abs(d)<0.005) return '<div class="delta"><span class="eq">= no change</span> vs '+esc(String(rows[1].read_at).slice(5))+'</div>';
+    var good = m.dir==="min" ? d>0 : d<0;
+    return '<div class="delta"><span class="'+(good?"up":"dn")+'"><b>'+(d>0?"▲ +":"▼ ")+d.toFixed(2)+' pts</b></span> vs '+esc(String(rows[1].read_at).slice(5))+'</div>';
+  }
+
+  // mini trend of the last 12 readings with the target line
+  function spark(m, rows, state){
+    var pts=rows.slice(0,12).reverse().map(function(r){ var x=rate(r,m.k); return x?{t:r.read_at,v:x.v}:null; }).filter(Boolean);
+    if(pts.length<2) return '<div class="spark"><div class="none">Trend line starts with the next reading</div></div>';
+    var vs=pts.map(function(p){return p.v;}).concat([m.target]);
+    var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs), pad=(mx-mn)*0.2||0.004; mn-=pad; mx+=pad;
+    var W=240,H=44, x=function(i){ return 3+(W-6)*i/(pts.length-1); }, y=function(v){ return 3+(H-6)*(1-(v-mn)/(mx-mn)); };
+    var line=pts.map(function(p,i){ return (i?"L":"M")+x(i).toFixed(1)+" "+y(p.v).toFixed(1); }).join(" ");
+    var last=pts[pts.length-1];
+    return '<div class="spark"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'+
+      '<line x1="0" x2="'+W+'" y1="'+y(m.target)+'" y2="'+y(m.target)+'" stroke="var(--r)" stroke-dasharray="3 3" stroke-width="1"/>'+
+      '<path d="'+line+' L'+x(pts.length-1).toFixed(1)+' '+H+' L'+x(0).toFixed(1)+' '+H+' Z" fill="var(--accent-soft)" opacity=".7"/>'+
+      '<path d="'+line+'" fill="none" stroke="var(--accent)" stroke-width="1.8"/>'+
+      '<circle cx="'+x(pts.length-1)+'" cy="'+y(last.v)+'" r="3.5" fill="'+COLOR[state]+'"/></svg>'+
+      '<div class="lbl"><span>'+esc(dm(pts[0].t))+'</span><span>last '+pts.length+' readings</span><span>'+esc(dm(last.t))+'</span></div></div>';
+  }
+
+  function trend(m, rows){
+    var pts = rows.slice().reverse().map(function(r){ var x=rate(r,m.k); return x?{t:r.read_at,v:x.v}:null; }).filter(Boolean);
+    if(pts.length<2) return '<div class="trend"><h3>'+m.name+'</h3><div class="empty">Trend appears after the next reading</div></div>';
+    var vs = pts.map(function(p){return p.v;}).concat([m.target]);
+    var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs), pad=(mx-mn)*0.15||0.005; mn-=pad; mx+=pad;
+    var W=300,H=110,L=38,R=8,T=8,B=20;
+    var x=function(i){ return L+(W-L-R)*(pts.length===1?0.5:i/(pts.length-1)); };
+    var y=function(v){ return T+(H-T-B)*(1-(v-mn)/(mx-mn)); };
+    var line = pts.map(function(p,i){ return (i?"L":"M")+x(i).toFixed(1)+" "+y(p.v).toFixed(1); }).join(" ");
+    var area = line+" L"+x(pts.length-1).toFixed(1)+" "+(H-B)+" L"+x(0).toFixed(1)+" "+(H-B)+" Z";
+    var last = pts[pts.length-1], st = assess(m, rate(rows[0],m.k)).state;
+    var ticks = [mx-pad, (mx+mn)/2, mn+pad].map(function(v){
+      return '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--rule-2)" stroke-width="1"/>'+
+             '<text x="'+(L-5)+'" y="'+(y(v)+3)+'" font-size="9" text-anchor="end" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">'+pct(v,1)+'</text>';
+    }).join("");
+    return '<div class="trend"><h3>'+m.name+'</h3><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="'+m.name+' trend">'+
+      ticks+
+      '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(m.target)+'" y2="'+y(m.target)+'" stroke="var(--r)" stroke-dasharray="3 3" stroke-width="1"/>'+
+      '<path d="'+area+'" fill="var(--accent-soft)" opacity=".6"/>'+
+      '<path d="'+line+'" fill="none" stroke="var(--accent)" stroke-width="1.8"/>'+
+      '<circle cx="'+x(pts.length-1)+'" cy="'+y(last.v)+'" r="4" fill="'+COLOR[st]+'"/>'+
+      '<text x="'+L+'" y="'+(H-5)+'" font-size="9" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">'+esc(dm(pts[0].t))+'</text>'+
+      '<text x="'+(W-R)+'" y="'+(H-5)+'" font-size="9" text-anchor="end" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">'+esc(dm(last.t))+'</text>'+
+      '</svg></div>';
+  }
+
+  function bhdrExtra(r){
+    var by=String(r.bhdr_by_method||"").trim(), mi=String(r.bhdr_misses||"").trim(), ro=String(r.bhdr_rolloff||"").trim();
+    if(!by && !mi && !ro) return "";
+    var h='<div class="bx">';
+    if(by){
+      h+='<div class="bx-h">By ship method</div>';
+      by.split(";").forEach(function(s){ s=s.trim(); if(!s) return;
+        var mm=s.match(/([0-9]+(?:[.,][0-9]+)?)\s*%/); var x=mm?parseFloat(mm[1].replace(",","."))/100:null;
+        var col = x==null ? "var(--ink-3)" : (x<=0.9 ? "var(--r)" : (x<0.93 ? "var(--a)" : "var(--g)"));
+        h+='<div class="bx-r"><span class="dot" style="background:'+col+'"></span>'+esc(s)+'</div>'; });
+    }
+    if(mi) h+='<div class="bx-h">Misses in the window</div><div class="bx-t">'+esc(mi)+'</div>';
+    if(ro) h+='<div class="bx-h">Leaving the 14-day window next</div><div class="bx-t">'+esc(ro)+'</div>';
+    return h+'</div>';
+  }
+
+  // a reading is expected every weekday around midday; stale if none since the last weekday 13:30 (1h grace before)
+  function dm(s){ var m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/); return m ? m[3]+"."+m[2]+"." : String(s).slice(5,10); }
+function staleInfo(s){
+    var mm=String(s||"").match(/(\d{4})-(\d{2})-(\d{2})\D+(\d{1,2}):(\d{2})/); if(!mm) return null;
+    var rd=new Date(+mm[1], +mm[2]-1, +mm[3], +mm[4], +mm[5]);
+    var now=new Date(), e=new Date(now); e.setHours(13,30,0,0);
+    if(now<e) e.setDate(e.getDate()-1);
+    while(e.getDay()===0 || e.getDay()===6) e.setDate(e.getDate()-1);
+    if(rd.getTime() >= e.getTime()-60*60*1000) return null;
+    return ("0"+e.getDate()).slice(-2)+"."+("0"+(e.getMonth()+1)).slice(-2)+"."+e.getFullYear()+" 13:30";
+  }
+
+  function render(rows){
+    $("loading").hidden = true;
+    if(!rows || !rows.length){ $("loading").hidden=false; $("loading").textContent="No readings in the sheet yet."; return; }
+    var r = rows[0];
+    $("when").textContent = r.read_at || "-";
+
+    var act = String(r.action||"").trim(), needs = act && !/^none$/i.test(act);
+    var anyBreach = METRICS.some(function(m){ var x=rate(r,m.k); return x && !assess(m,x).pass; });
+    var b = $("banner");
+    b.className = "banner " + (anyBreach ? "crit" : needs ? "warn" : "ok");
+    b.innerHTML = '<span class="tag">'+(needs||anyBreach?"Action needed":"All clear")+'</span><div><div class="msg">'+esc(needs?act:(anyBreach?"A metric is below Amazon's target.":"No action needed."))+'</div>'+(r.note?'<div class="why">'+esc(r.note)+'</div>':'')+'</div>';
+    var stale = staleInfo(r.read_at);
+    if(stale){
+      b.className = "banner crit stale";
+      b.innerHTML = '<span class="tag">Stale data</span><div><div class="msg">No new reading since '+esc(r.read_at)+'. One was expected by '+esc(stale)+'. Check that the reading was added to the sheet.</div><div class="why">Last reading said: '+esc(needs?act:(anyBreach?"A metric is below Amazon’s target.":"No action needed."))+'</div></div>';
+    }
+    $("s-verdict").hidden = false;
+
+    $("tiles").innerHTML = METRICS.map(function(m){
+      var x = rate(r,m.k);
+      if(!x) return '<div class="tile"><div class="hd"><span class="nm">'+m.name+'</span></div><div class="meta">Not read in this reading</div></div>';
+      var a = assess(m,x);
+      var word = a.k===1 ? m.one : m.unit;
+      var room = !a.pass ? '<b>Below target</b>' : (m.dir==="min" ? '<b>'+fmt(a.k)+'</b> more '+word+' can miss before a breach' : '<b>'+fmt(a.k)+'</b> more late '+word+' before a breach');
+      return '<div class="tile '+(a.state==="ok"?"":a.state)+'">'+
+        '<div class="hd"><span class="nm">'+m.name+'</span><span class="pill '+a.state+'">'+({ok:"Healthy",tight:"Tight",breach:"Breach"})[a.state]+'</span></div>'+
+        '<div class="gwrap">'+radial(m,x.v,a.state)+'<div class="gval" style="color:'+(a.state==="ok"?"var(--ink)":COLOR[a.state])+'">'+(x.v*100).toFixed(2)+'%</div></div>'+
+        delta(m, rows)+
+        '<div class="meta" style="text-align:center">'+fmt(x.n)+' of '+fmt(x.d)+' '+m.unit+' · '+esc(r[m.k+"_window"]||m.win||"")+' · target '+(m.dir==="min"?"over":"under")+' '+pct(m.target,0)+'</div>'+
+        '<div class="room">'+room+'</div>'+
+        spark(m, rows, a.state)+(m.k==="bhdr"?bhdrExtra(r):"")+'</div>';
+    }).join("");
+    $("s-tiles").hidden = false;
+
+    $("trends").innerHTML = METRICS.map(function(m){ return trend(m, rows); }).join("");
+    $("trend-note").textContent = rows.length + " reading" + (rows.length===1?"":"s") + " · dashed line = Amazon target";
+    $("s-trend").hidden = false;
+
+    var cell = function(row,m){ var x=rate(row,m.k); if(!x) return '<span class="c">-</span>'; var s=assess(m,x).state;
+      return '<span class="dot" style="background:'+COLOR[s]+'"></span>'+(x.v*100).toFixed(2)+'% <span class="c">('+fmt(x.n)+'/'+fmt(x.d)+')</span>'; };
+    $("hist").innerHTML = '<thead><tr><th>Read</th><th>On-time delivery</th><th>Late dispatch 10d</th><th>Late dispatch 30d</th><th>BHDR</th><th>Action</th><th>Note</th></tr></thead><tbody>'+
+      rows.map(function(x){ return '<tr><td class="d">'+esc(x.read_at)+'</td><td class="d">'+cell(x,METRICS[0])+'</td><td class="d">'+cell(x,METRICS[1])+'</td><td class="d">'+cell(x,METRICS[2])+'</td><td class="d">'+cell(x,METRICS[3])+'</td><td>'+esc(x.action)+'</td><td>'+esc(x.note)+'</td></tr>'; }).join("")+'</tbody>';
+    $("hist-note").textContent = "newest first";
+    $("s-hist").hidden = false;
+  }
+
+  function boot(){
+    if(!(window.google && window.google.script && window.google.script.run)){ $("loading").textContent="Open this page from the web app link."; return; }
+    window.google.script.run.withSuccessHandler(function(rows){
+      try{ render(rows); }catch(e){ $("loading").hidden=false; $("loading").textContent="Could not show the readings: "+e.message; }
+    }).withFailureHandler(function(e){
+      $("loading").hidden=false; $("loading").textContent="Could not load the readings from the sheet.";
+      if(window.console) console.error(e);
+    }).getHealth();
+  }
+  boot();
+  setInterval(function(){ if(!document.hidden) boot(); }, 15*60*1000);
+})();
+</script>
+<div id="actPanel" data-scope="health" style="max-width:1200px;margin:0 auto;padding:0 16px"></div>
+<script>
+(function(){
+  var el=document.getElementById('actPanel');
+  function load(){
+    el.innerHTML='<p style="opacity:.6;font-size:.85rem">Loading action plan…</p>';
+    google.script.run.withSuccessHandler(function(h){el.innerHTML=h;})
+      .withFailureHandler(function(e){el.innerHTML='<p style="color:#b3261e;font-size:.85rem">Action plan could not load: '+(e&&e.message||e)+'</p>';})
+      .getActionsPanel(el.getAttribute('data-scope'));
+  }
+  el.addEventListener('click',function(ev){
+    var b=ev.target.closest('[data-draft]'); if(!b) return;
+    b.disabled=true; b.textContent='Drafting…';
+    google.script.run.withSuccessHandler(function(r){b.textContent=r.msg;})
+      .withFailureHandler(function(e){b.disabled=false;b.textContent='Failed, retry';b.title=String(e&&e.message||e);})
+      .draftGroup(b.getAttribute('data-draft'));
+  });
+  load();
+})();
+</script>
+<script>/* dates shown as dd.mm.yyyy */(function(){var re=/\b(20\d{2})-(\d{2})-(\d{2})\b/g,re2=/(\bvs )(\d{2})-(\d{2})\b/g;function fx(n){if(n.nodeType===3){var t=n.nodeValue,u=t.replace(re,"$3.$2.$1").replace(re2,"$1$3.$2.");if(u!==t)n.nodeValue=u;return}if(n.nodeType!==1||/^(SCRIPT|STYLE|TEXTAREA|INPUT|SELECT)$/.test(n.nodeName))return;for(var c=n.firstChild;c;c=c.nextSibling)fx(c)}fx(document.body);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==="characterData")fx(m.target);else m.addedNodes.forEach(fx)})}).observe(document.body,{childList:true,subtree:true,characterData:true})})();</script>
+<script>
+(function(){var b=document.createElement('div');b.id='srcChk';b.style.cssText='position:sticky;top:0;z-index:50;padding:10px 16px;font:600 15px system-ui,sans-serif;background:#555;color:#fff';b.textContent='SOURCE CHECK: checking...';document.body.insertBefore(b,document.body.firstChild);
+google.script.run.withSuccessHandler(function(d){var s=typeof d==='string'?d:JSON.stringify(d);var best=null,txt='';var re=/(20\d\d)-(\d\d)-(\d\d)[ T](\d\d):(\d\d)/g,m;while((m=re.exec(s))){var t=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).getTime();if(best===null||t>best){best=t;txt=m[0].replace('T',' ');}}
+if(best===null){var re2=/(20\d\d)-(\d\d)-(\d\d)/g;while((m=re2.exec(s))){var t2=new Date(+m[1],+m[2]-1,+m[3]).getTime();if(best===null||t2>best){best=t2;txt=m[0];}}}
+if(best===null){b.textContent='SOURCE CHECK: NO READ DATE FOUND';b.style.background='#C62828';return;}
+var h=Math.floor((Date.now()-best)/36e5);var dw=new Date().getDay();var wk=(dw>=2&&dw<=5);var T1=wk?15:80,T2=wk?26:104;var st=h<=T1?'UP TO DATE':h<=T2?'DUE':'OUT OF DATE';b.style.background=h<=T1?'#2E7D32':h<=T2?'#F2A900':'#C62828';b.style.color=(h>T1&&h<=T2)?'#14213D':'#fff';b.textContent='SOURCE CHECK: '+st+' | newest read '+txt+' ('+h+' h ago)';}).getHealth();})();
+</script>
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base target="_top">
+<title>DE Prime Check</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{color-scheme:dark}
+  html,body{margin:0}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<style>
+/* Layout: one scanning column: status strip, buffer map, product matrix, history. */
+/* Dark-only: one committed look, so every colour is set explicitly here. */
+:root{
+  --paper:#101211; --panel:#191c1b; --ink:#eceeea; --ink-2:#a9b1af; --ink-3:#7e8785;
+  --rule:#2e3331; --rule-2:#242827;
+  --accent:#6fc4b6; --accent-soft:#1d2f2d;
+  --b0:#4FA06F; --b1:#E0A33F; --b2:#E0685C;
+  --b0-bg:#1b2a21; --b1-bg:#2d2618; --b2-bg:#2e1c1a;
+  --ok:#5fb98a; --off:#5d6664;
+  --f-display:"IBM Plex Sans Condensed","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --f-data:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:20px 56px;display:flex;flex-direction:column;gap:26px}
+h1,h2,h3{margin:0;font-family:var(--f-display);text-wrap:balance}
+a{color:var(--accent)}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;border-bottom:2px solid var(--ink-2);padding-bottom:12px}
+.top h1{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:1.05}
+.top .sub{color:var(--ink-2);font-size:13px;margin-top:3px}
+.stamp{text-align:right;min-width:0}
+.stamp .when{font-family:var(--f-data);font-size:19px;font-weight:500;letter-spacing:-.02em;white-space:nowrap}
+.stamp .phase{display:inline-block;margin-top:4px;font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);border-radius:2px;padding:3px 7px}
+
+.lede{font-size:15px;color:var(--ink-2);max-width:62ch;margin:-8px 0 0}
+.lede strong{color:var(--ink);font-weight:600}
+
+section{display:flex;flex-direction:column;gap:12px}
+.shead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.shead h2{font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3)}
+.shead .note{font-size:12px;color:var(--ink-3)}
+
+/* prime tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:13px 14px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.tile .cls{font-family:var(--f-display);font-size:14px;font-weight:700;letter-spacing:.01em}
+.product-counts{display:flex;flex-direction:column;gap:5px;border-top:1px solid var(--rule);padding-top:8px;font-size:12px}
+.product-count{display:flex;justify-content:space-between;gap:8px}
+.product-count b{font-family:var(--f-data);white-space:nowrap}
+.tile .items{font-size:12px;color:var(--ink-3);min-width:0}
+.tile .cov{display:flex;align-items:baseline;gap:7px;font-family:var(--f-data);font-variant-numeric:tabular-nums}
+.tile .cov b{font-size:26px;font-weight:500;letter-spacing:-.03em;line-height:1}
+.tile .cov span{font-size:12px;color:var(--ink-3)}
+.dots{display:flex;gap:3px}
+.dots i{width:9px;height:9px;border-radius:50%;background:var(--off);display:block}
+.dots i.on{background:var(--ok)}
+.tile.full{border-color:var(--ok)}
+.tile.none .cov b{color:var(--ink-3)}
+
+/* buffer map */
+.buffers{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.bcol{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:12px 13px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.bcol header{display:flex;align-items:center;gap:8px}
+.swatch{width:13px;height:13px;border-radius:2px;flex:none}
+.bcol h3{font-family:var(--f-display);font-size:13px;font-weight:700;letter-spacing:.02em}
+.bcol .cnt{margin-left:auto;font-family:var(--f-data);font-size:12px;color:var(--ink-3)}
+.plzlist{display:flex;flex-direction:column;gap:5px}
+.plz{display:flex;align-items:baseline;gap:8px;padding:5px 8px;border-radius:2px;min-width:0}
+.plz .n{font-family:var(--f-data);font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.plz .c{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.plz .d{margin-left:auto;font-family:var(--f-data);font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.b0 .plz{background:var(--b0-bg)} .b1 .plz{background:var(--b1-bg)} .b2 .plz{background:var(--b2-bg)}
+.empty{font-size:12.5px;color:var(--ink-3);font-style:italic;padding:5px 8px}
+
+/* flags */
+.flags{background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--b1);border-radius:3px;padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.flags .fl{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;font-size:13px}
+.flags .fl .k{font-family:var(--f-data);font-size:12.5px;font-weight:500;white-space:nowrap}
+.flags .fl .v{color:var(--ink-2);min-width:0}
+
+/* matrix */
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:820px}
+th,td{text-align:left;padding:6px 7px;border-bottom:1px solid var(--rule-2);white-space:nowrap}
+thead th{position:sticky;top:0;background:var(--panel);font-family:var(--f-display);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--rule)}
+tbody tr:last-child td{border-bottom:0}
+td.plzc{font-family:var(--f-data);font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+td.ortc{color:var(--ink-2)}
+td.cell{font-family:var(--f-data);font-size:11.5px;font-variant-numeric:tabular-nums}
+td.cell .day{color:var(--ink)}
+td.cell.rng .day{color:var(--b1);font-weight:500}
+td.cell .pm{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--off);margin-right:6px;vertical-align:1px}
+td.cell .pm.on{background:var(--ok)}
+.pm.unknown,.dots i.unknown{background:transparent;outline:1px dashed var(--muted,#6b7280);color:var(--muted,#6b7280);font-style:normal;font-size:9px;line-height:7px}
+td .bufmark{display:inline-block;width:4px;height:12px;border-radius:1px;margin-right:7px;vertical-align:-1px}
+
+/* history */
+.hist{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:14px;display:flex;flex-direction:column;gap:16px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:6px}
+.bars{display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding-bottom:2px}
+.bar{display:flex;flex-direction:column;gap:6px;align-items:center;min-width:56px;flex:1 1 56px}
+.stack{width:100%;height:112px;display:flex;flex-direction:column-reverse;gap:2px;justify-content:flex-start}
+.seg{width:100%;border-radius:2px;position:relative}
+.seg:first-child{border-radius:2px 2px 0 0}
+.bar .lab{font-family:var(--f-data);font-size:11px;color:var(--ink-3);text-align:center;line-height:1.3}
+.bar .lab b{display:block;color:var(--ink-2);font-weight:500}
+.bar.now .lab b{color:var(--accent)}
+.covgrid{display:grid;gap:2px 8px;font-size:12px;align-items:center;overflow-x:auto}
+.covgrid .rl{color:var(--ink-2);white-space:nowrap;padding-right:4px}
+.covgrid .ch{font-family:var(--f-data);font-size:10.5px;color:var(--ink-3);text-align:center;white-space:nowrap}
+.covgrid .cv{text-align:center;font-family:var(--f-data);font-size:11px;font-variant-numeric:tabular-nums;border-radius:2px;padding:3px 0}
+.cv.full{background:var(--b0-bg);color:var(--ok)}
+.cv.zero{background:transparent;color:var(--ink-3)}
+.cv.part{background:var(--b1-bg);color:var(--b1)}
+
+.changes{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.changes .ch-row{display:flex;gap:9px;align-items:baseline}
+.changes .ch-row .k{font-family:var(--f-data);font-size:12px;color:var(--ink-3);white-space:nowrap}
+.changes .none{color:var(--ink-3)}
+
+footer{border-top:1px solid var(--rule);padding-top:12px;font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
+
+.loading{color:var(--ink-3);font-size:13px;padding:22px 0;text-align:center}
+@media (max-width:520px){
+  .top h1{font-size:24px}
+  .stamp{text-align:left}
+  .stamp .when{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>DE Prime Check</h1>
+      <div class="sub">amazon.de Prime badge and delivery promise across 10 German postcode zones · weekdays 06:00 and 17:00 CET</div>
+      <div class="sub"><a href="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec?view=health" target="_top">SFP DE Account Health →</a></div>
+    </div>
+    <div class="stamp">
+      <div class="when" id="when">-</div>
+      <div class="phase" id="phase" hidden></div>
+    </div>
+  </div>
+
+
+  <p class="lede" id="lede">Loading the latest check…</p>
+
+  <section id="s-prime" hidden>
+    <div class="shead"><h2>Prime badge by size class</h2><div class="note">Group total uses active products only; unavailable listings are excluded</div></div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="s-buffer" hidden>
+    <div class="shead"><h2>Buffer days</h2><div class="note">0 = earliest delivery day in this check; ranges counted by their first day</div></div>
+    <div class="buffers" id="buffers"></div>
+  </section>
+
+  <section id="s-flags" hidden>
+    <div class="shead"><h2>Date ranges</h2><div class="note">Amazon showed a span, not a single day: confirmed by reload</div></div>
+    <div class="flags" id="flags"></div>
+  </section>
+
+  <section id="s-matrix" hidden>
+    <div class="shead"><h2>Full matrix</h2><div class="note">Prime badge (dot), ? = observation missing, N/A = unavailable listing, and Liefertag</div></div>
+    <div class="scroll"><table id="matrix"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="s-hist" hidden>
+    <div class="shead"><h2>History</h2><div class="note" id="histnote"></div></div>
+    <div class="hist">
+      <div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--b0)"></i>0 buffer days</span>
+          <span><i class="swatch" style="background:var(--b1)"></i>1 buffer day</span>
+          <span><i class="swatch" style="background:var(--b2)"></i>2 buffer days</span>
+        </div>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div>
+        <div class="shead" style="margin-bottom:8px"><h2 style="font-size:11px">Prime coverage per check · active products</h2></div>
+        <div class="covgrid" id="covgrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s-chg" hidden>
+    <div class="shead"><h2>Changed since the previous check</h2></div>
+    <div class="changes" id="changes"></div>
+  </section>
+
+  <div class="loading" id="loading">Loading checks…</div>
+
+  <footer>
+    <span>Current verified observations: <a href="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_3/edit#gid=0" target="_blank" rel="noopener">Prime_Observations</a>. Earlier checks: <a href="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_4/edit#gid=0" target="_blank" rel="noopener">PLZ_Produkte German</a>.</span>
+    <span id="foot-count"></span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var PRODUCTS=[
+    {k:"pa",  label:"Product A",   short:"Product A",  asin:"B0EXAMPLE1"},
+    {k:"pb",label:"Product B", short:"Product B",asin:"B0EXAMPLE2"},
+    {k:"pc",  label:"Product C",short:"Prod C",asin:"B0EXAMPLE3"},
+    {k:"pd", label:"Product D", short:"Product D",asin:"B0EXAMPLE4"},
+    {k:"pe",label:"Product E",short:"Prod E",asin:"B0EXAMPLE5"},
+    {k:"pf",   label:"Product F", short:"Product F", asin:"B0EXAMPLE6"},
+    {k:"pg",   label:"Product G", short:"Product G", asin:"B0EXAMPLE7"},
+    {k:"ph",    label:"Product H",  short:"Product H",  asin:"B0EXAMPLE8"}
+  ];
+  var CLASSES=[
+    {name:"Extra large", items:"Product D · Product F", idx:[3,5]},
+    {name:"Oversize",    items:"Product A · B · C", idx:[0,1,2]},
+    {name:"Standard",    items:"Product E", idx:[4]},
+    {name:"Small packs",  items:"Product G · Product H", idx:[6,7]}
+  ];
+  var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  var $=function(id){return document.getElementById(id);};
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+  function isRange(s){return typeof s==="string" && s.indexOf(" - ")>-1;}
+  // "10/07/2026" (MM/DD/YYYY, as the sheet stores it) -> "7 Oct"
+  function d2(n){ n=parseInt(n,10); return (n<10?"0":"")+n; }
+  function pretty(s){
+    if(!s) return "-";
+    if(isRange(s)){var p=s.split(" - ");return pretty(p[0])+" – "+pretty(p[1]);}
+    var m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s.trim());
+    if(!m) return s;
+    return d2(m[2])+"."+d2(m[1])+"."+m[3];
+  }
+  function prettyDay(iso){ // "2026-10-07" -> "07.10.2026"
+    if(!iso) return "-";
+    var p=String(iso).split("-");
+    if(p.length!==3) return iso;
+    return d2(p[2])+"."+d2(p[1])+"."+p[0];
+  }
+  function shortStamp(c){
+    var p=String(c.date||"").split("-");
+    if(p.length!==3) return c.ts||"";
+    return d2(p[2])+"."+d2(p[1])+".";
+  }
+
+  function primeState(r,i){
+    if(!r.primeKnown || r.primeKnown[i]!==true) return null;
+    var value=(r.prime||[])[i];
+    return value===1?true:(value===0?false:null);
+  }
+  function groupState(r,indices){
+    indices=indices.filter(function(i){return !r.availability || r.availability[i]!=="unavailable";});
+    if(!indices.length)return null;
+    var states=indices.map(function(i){return primeState(r,i);});
+    if(states.some(function(v){return v===false;})) return false;
+    return states.every(function(v){return v===true;})?true:null;
+  }
+  function coverage(rows,indices){
+    var n=0,known=0;
+    rows.forEach(function(r){var state=groupState(r,indices);if(state!==null)known++;if(state===true)n++;});
+    return {n:n,known:known,unknown:rows.length-known};
+  }
+  function render(checks){
+    $("loading").hidden=true;
+    if(!checks.length){
+      $("lede").textContent="No checks in the sheet yet.";
+      $("foot-count").textContent="";
+      return;
+    }
+    var cur=checks[0], prev=checks[1]||null;
+    var rows=cur.rows||[];
+
+    $("when").textContent=prettyDay(cur.date)+" "+(cur.time||"");
+    var ph=$("phase"); ph.hidden=false;
+    ph.textContent=(cur.phase==="before"?"before cut-off":"after cut-off");
+
+
+    // ---- Prime tiles
+    var tiles=$("tiles"); tiles.innerHTML="";
+    CLASSES.forEach(function(cl){
+      var measured=coverage(rows,cl.idx), n=measured.n;
+      var t=el("div","tile"+(n===rows.length&&rows.length?" full":(n===0&&!measured.unknown?" none":"")));
+      t.appendChild(el("div","cls",cl.name));
+      t.appendChild(el("div","items",cl.items));
+      var cov=el("div","cov");
+      var b=el("b",null,n+"/"+measured.known); cov.appendChild(b);
+      cov.appendChild(el("span",null,"observed zones · active products"+(measured.unknown?" · "+measured.unknown+" unknown":"")));
+      t.appendChild(cov);
+      var d=el("div","dots");
+      rows.forEach(function(r){
+        var state=groupState(r,cl.idx);
+        var i=el("i",state===null?"unknown":(state?"on":null)); i.title=r.plz+(state===null?": Prime observation missing":(state?": all listed products have Prime":": confirmed not all listed products have Prime")); d.appendChild(i);
+      });
+      t.appendChild(d);
+      var productCounts=el("div","product-counts");
+      cl.idx.forEach(function(i){
+        var product=coverage(rows,[i]);
+        var line=el("div","product-count");
+        line.appendChild(el("span",null,PRODUCTS[i].label));
+        line.appendChild(el("b",null,(rows[0].availability&&rows[0].availability[i]==="unavailable")?"Unavailable":product.n+"/"+product.known+(product.unknown?" · "+product.unknown+" unknown":"")));
+        productCounts.appendChild(line);
+      });
+      t.appendChild(productCounts);
+      tiles.appendChild(t);
+    });
+    $("s-prime").hidden=false;
+
+    // ---- Buffer map
+    var bwrap=$("buffers"); bwrap.innerHTML="";
+    [0,1,2].forEach(function(b){
+      var col=el("div","bcol b"+b);
+      var h=el("header");
+      var sw=el("i","swatch"); sw.style.background="var(--b"+b+")"; h.appendChild(sw);
+      h.appendChild(el("h3",null,b===0?"0 buffer days":(b===1?"1 buffer day":"2 buffer days")));
+      var mine=rows.filter(function(r){return r.buffer===b;});
+      h.appendChild(el("div","cnt",mine.length+" of "+rows.length));
+      col.appendChild(h);
+      var list=el("div","plzlist");
+      if(!mine.length) list.appendChild(el("div","empty","No zone in this bucket."));
+      mine.forEach(function(r){
+        var p=el("div","plz");
+        p.appendChild(el("span","n",r.plz));
+        p.appendChild(el("span","c",r.ort));
+        p.appendChild(el("span","d",prettyDay(r.day)));
+        list.appendChild(p);
+      });
+      col.appendChild(list);
+      bwrap.appendChild(col);
+    });
+    $("s-buffer").hidden=false;
+
+    // ---- Date ranges
+    var fl=$("flags"); fl.innerHTML="";
+    var anyRange=false;
+    rows.forEach(function(r){
+      var hits=[];
+      (r.liefer||[]).forEach(function(v,i){ if(isRange(v)) hits.push({i:i,v:v}); });
+      if(!hits.length) return;
+      anyRange=true;
+      var row=el("div","fl");
+      row.appendChild(el("span","k",r.plz+" "+r.ort));
+      var by={};
+      hits.forEach(function(h){ (by[h.v]=by[h.v]||[]).push(PRODUCTS[h.i].label); });
+      var parts=Object.keys(by).map(function(v){return pretty(v)+": "+by[v].join(", ");});
+      row.appendChild(el("span","v",parts.join(" · ")));
+      fl.appendChild(row);
+    });
+    if(anyRange) $("s-flags").hidden=false;
+
+    // ---- Matrix
+    var thead=$("matrix").tHead, tbody=$("matrix").tBodies[0];
+    thead.innerHTML=""; tbody.innerHTML="";
+    var hr=el("tr");
+    hr.appendChild(el("th",null,"PLZ")); hr.appendChild(el("th",null,"Ort"));
+    PRODUCTS.forEach(function(p){var th=el("th",null,p.short); th.title=p.label+" · "+p.asin; hr.appendChild(th);});
+    thead.appendChild(hr);
+    rows.forEach(function(r){
+      var tr=el("tr");
+      var td0=el("td","plzc");
+      var mk=el("i","bufmark"); mk.style.background="var(--b"+(r.buffer||0)+")";
+      mk.title=(r.buffer||0)+" buffer day"+(r.buffer===1?"":"s");
+      td0.appendChild(mk); td0.appendChild(document.createTextNode(r.plz));
+      tr.appendChild(td0);
+      tr.appendChild(el("td","ortc",r.ort));
+      PRODUCTS.forEach(function(p,i){
+        if(r.availability&&r.availability[i]==="unavailable"){var na=el("td","cell","N/A");na.title=p.label+" · listing unavailable; excluded from active monitoring";tr.appendChild(na);return;}
+        var v=(r.liefer||[])[i]||"";
+        var td=el("td","cell"+(isRange(v)?" rng":""));
+        var state=primeState(r,i);
+        var dot=el("i","pm"+(state===null?" unknown":(state?" on":"")));
+        dot.title=state===null?"Prime observation missing":(state?"Prime badge":"no Prime badge");
+        if(state===null) dot.textContent="?";
+        td.appendChild(dot);
+        td.appendChild(el("span","day",pretty(v)));
+        td.title=p.label+" · "+(state===null?"Prime observation missing":(state?"Prime":"no Prime"))+" · "+(v||"no date");
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    $("s-matrix").hidden=false;
+
+    // ---- History
+    var series=checks.slice(0,12).reverse();
+    var bars=$("bars"); bars.innerHTML="";
+    series.forEach(function(c,ix){
+      var rs=c.rows||[], tot=rs.length||1;
+      var counts=[0,0,0];
+      rs.forEach(function(r){counts[r.buffer||0]++;});
+      var bar=el("div","bar"+(ix===series.length-1?" now":""));
+      var st=el("div","stack");
+      [0,1,2].forEach(function(b){
+        if(!counts[b]) return;
+        var seg=el("div","seg");
+        seg.style.height=(counts[b]/tot*100)+"%";
+        seg.style.background="var(--b"+b+")";
+        seg.title=counts[b]+" zone"+(counts[b]===1?"":"s")+" with "+b+" buffer day"+(b===1?"":"s");
+        st.appendChild(seg);
+      });
+      bar.appendChild(st);
+      var lab=el("div","lab");
+      lab.appendChild(el("b",null,shortStamp(c)));
+      lab.appendChild(document.createTextNode(c.time||""));
+      bar.appendChild(lab);
+      bars.appendChild(bar);
+    });
+
+    var cg=$("covgrid"); cg.innerHTML="";
+    cg.style.gridTemplateColumns="minmax(96px,auto) repeat("+series.length+",minmax(38px,1fr))";
+    cg.appendChild(el("div","rl",""));
+    series.forEach(function(c){ cg.appendChild(el("div","ch",shortStamp(c)+" "+(c.time||"").slice(0,2))); });
+    CLASSES.forEach(function(cl){
+      cg.appendChild(el("div","rl",cl.name));
+      series.forEach(function(c){
+        var rs=c.rows||[], measured=coverage(rs,cl.idx), n=measured.n;
+        var cls=measured.unknown?"part":(n===0?"zero":(n===rs.length?"full":"part"));
+        var d=el("div","cv "+cls, n+"/"+measured.known+(measured.unknown?" ?":""));
+        d.title=cl.name+" · "+shortStamp(c)+" "+(c.time||"")+" · All listed products have Prime in "+n+" of "+measured.known+" observed zones; "+measured.unknown+" unknown";
+        cg.appendChild(d);
+      });
+    });
+    $("histnote").textContent=checks.length+" check"+(checks.length===1?"":"s")+" read from the sheet"+(series.length<checks.length?", showing the last "+series.length:"");
+    $("s-hist").hidden=false;
+    $("foot-count").textContent=checks.length+" checks read";
+
+    // ---- Changes vs previous
+    var chg=$("changes"); chg.innerHTML="";
+    if(!prev){
+      chg.appendChild(el("div","none","No earlier check to compare against."));
+    }else{
+      var pmap={}; (prev.rows||[]).forEach(function(r){pmap[r.plz]=r;});
+      var lines=[];
+      rows.forEach(function(r){
+        var o=pmap[r.plz]; if(!o) return;
+        var diffs=[];
+        PRODUCTS.forEach(function(p,i){
+          var a=(o.liefer||[])[i]||"", b=(r.liefer||[])[i]||"";
+          if(a!==b) diffs.push(p.label+" "+pretty(a)+" → "+pretty(b));
+          var pa=primeState(o,i), pb=primeState(r,i);
+          if(pa!==null && pb!==null && pa!==pb) diffs.push(p.label+" Prime "+(pa?"lost":"gained"));
+          if(pb===null && (!r.availability || r.availability[i]!=="unavailable")) diffs.push(p.label+" Prime observation missing");
+        });
+        if((o.buffer||0)!==(r.buffer||0)) diffs.unshift("buffer "+(o.buffer||0)+" → "+(r.buffer||0));
+        if(diffs.length) lines.push({plz:r.plz+" "+r.ort, txt:diffs.join(" · ")});
+      });
+      if(!lines.length){
+        chg.appendChild(el("div","none","Nothing changed since "+prettyDay(prev.date)+" "+(prev.time||"")+"."));
+      }else{
+        lines.forEach(function(l){
+          var row=el("div","ch-row");
+          row.appendChild(el("span","k",l.plz));
+          row.appendChild(el("span",null,l.txt));
+          chg.appendChild(row);
+        });
+      }
+    }
+    $("s-chg").hidden=false;
+
+    $("lede").innerHTML="";
+    var z0=rows.filter(function(r){return r.buffer===0;}).length;
+    var lede=document.createElement("span");
+    lede.appendChild(document.createTextNode("Of "+rows.length+" postcode zones, "));
+    var st1=document.createElement("strong"); st1.textContent=z0+" have no buffer day"; lede.appendChild(st1);
+    lede.appendChild(document.createTextNode(": they sit on the earliest delivery day this check reached, so any slip there is visible to the customer immediately."));
+    $("lede").appendChild(lede);
+    if(cur.measured) $("lede").textContent="60 of 60 active checks complete · 6 products × 10 postcodes. Retail featured offers include Amazon and seller fulfilment; a badge alone does not establish SFP. Collection "+new Date(cur.startedAt).toLocaleTimeString("en-GB",{timeZone:"Europe/Berlin"})+"–"+new Date(cur.completedAt).toLocaleTimeString("en-GB",{timeZone:"Europe/Berlin"})+" local time.";
+  }
+
+  // ---- data source -------------------------------------------------------
+  // 1. Google Apps Script web app  -> server function getChecks()
+  // 2. anything else (static host) -> fetch(CHECKS_URL || "checks.json")
+  function loadChecks(ok, fail){
+    if(window.google && window.google.script && window.google.script.run){
+      window.google.script.run.withSuccessHandler(ok).withFailureHandler(fail).getChecks();
+      return;
+    }
+    var url = window.CHECKS_URL || "checks.json";
+    fetch(url, {cache:"no-store"}).then(function(r){
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return r.json();
+    }).then(function(j){
+      ok(Array.isArray(j) ? j : (j && j.checks) || []);
+    })["catch"](fail);
+  }
+
+  function boot(){
+    loadChecks(function(list){
+      list = (list||[]).slice().sort(function(a,b){
+        return String(b.ts||"").localeCompare(String(a.ts||""));
+      });
+      try{ render(list); }
+      catch(e){ $("loading").hidden=false; $("loading").textContent="Could not render the checks: "+e.message; }
+    }, function(e){
+      $("loading").hidden=false;
+      $("loading").textContent="Could not load the checks. Check that the data source is reachable.";
+      $("lede").textContent="No data loaded.";
+      if(window.console) console.error(e);
+    });
+  }
+  boot();
+  // quiet refresh while the page is left open on a wall screen
+  setInterval(function(){ if(!document.hidden) boot(); }, 15*60*1000);
+})();
+</script>
+<div id="actPanel" data-scope="prime" style="max-width:1200px;margin:0 auto;padding:0 16px"></div>
+<script>
+(function(){
+  var el=document.getElementById('actPanel');
+  function load(){
+    el.innerHTML='<p style="opacity:.6;font-size:.85rem">Loading action plan…</p>';
+    google.script.run.withSuccessHandler(function(h){el.innerHTML=h;})
+      .withFailureHandler(function(e){el.innerHTML='<p style="color:#b3261e;font-size:.85rem">Action plan could not load: '+(e&&e.message||e)+'</p>';})
+      .getActionsPanel(el.getAttribute('data-scope'));
+  }
+  el.addEventListener('click',function(ev){
+    var b=ev.target.closest('[data-draft]'); if(!b) return;
+    b.disabled=true; b.textContent='Drafting…';
+    google.script.run.withSuccessHandler(function(r){b.textContent=r.msg;})
+      .withFailureHandler(function(e){b.disabled=false;b.textContent='Failed, retry';b.title=String(e&&e.message||e);})
+      .draftGroup(b.getAttribute('data-draft'));
+  });
+  load();
+})();
+</script>
+<script>/* dates shown as dd.mm.yyyy */(function(){var re=/\b(20\d{2})-(\d{2})-(\d{2})\b/g,re2=/(\bvs )(\d{2})-(\d{2})\b/g;function fx(n){if(n.nodeType===3){var t=n.nodeValue,u=t.replace(re,"$3.$2.$1").replace(re2,"$1$3.$2.");if(u!==t)n.nodeValue=u;return}if(n.nodeType!==1||/^(SCRIPT|STYLE|TEXTAREA|INPUT|SELECT)$/.test(n.nodeName))return;for(var c=n.firstChild;c;c=c.nextSibling)fx(c)}fx(document.body);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==="characterData")fx(m.target);else m.addedNodes.forEach(fx)})}).observe(document.body,{childList:true,subtree:true,characterData:true})})();</script>
+<script>
+(function(){var b=document.createElement('div');b.id='srcChk';b.style.cssText='position:sticky;top:0;z-index:50;padding:10px 16px;font:600 15px system-ui,sans-serif;background:#555;color:#fff';b.textContent='SOURCE CHECK: checking...';document.body.insertBefore(b,document.body.firstChild);
+google.script.run.withSuccessHandler(function(d){var s=typeof d==='string'?d:JSON.stringify(d);var best=null,txt='';var re=/(20\d\d)-(\d\d)-(\d\d)[ T](\d\d):(\d\d)/g,m;while((m=re.exec(s))){var t=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).getTime();if(best===null||t>best){best=t;txt=m[0].replace('T',' ');}}
+if(best===null){var re2=/(20\d\d)-(\d\d)-(\d\d)/g;while((m=re2.exec(s))){var t2=new Date(+m[1],+m[2]-1,+m[3]).getTime();if(best===null||t2>best){best=t2;txt=m[0];}}}
+if(best===null){b.textContent='SOURCE CHECK: NO READ DATE FOUND';b.style.background='#C62828';return;}
+var h=Math.floor((Date.now()-best)/36e5);var dw=new Date().getDay();var wk=(dw>=2&&dw<=5);var T1=wk?15:80,T2=wk?26:104;var st=h<=T1?'UP TO DATE':h<=T2?'DUE':'OUT OF DATE';b.style.background=h<=T1?'#2E7D32':h<=T2?'#F2A900':'#C62828';b.style.color=(h>T1&&h<=T2)?'#14213D':'#fff';b.textContent='SOURCE CHECK: '+st+' | newest read '+txt+' ('+h+' h ago)';}).getChecks();})();
+</script>
+</body>
+</html>
